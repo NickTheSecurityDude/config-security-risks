@@ -8,6 +8,56 @@
 # or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for
 # the specific language governing permissions and limitations under the License.
+'''
+#####################################
+##           Gherkin               ##
+#####################################
+
+Rule Name:
+  s3-cust-kms-encrypted
+
+Description:
+  Check that all S3 Buckets have *Customer* KMS Encryption.
+
+Trigger:
+  Periodic
+  Configuration Change on AWS::S3::Bucket
+
+Reports on:
+  AWS::S3::Bucket
+
+Parameters:
+  | ----------------------|-----------|-----------------------------------------------|
+  | Parameter Name        | Type      | Description                                   |
+  | ----------------------|-----------|---------------------------------------------- |
+  | prefix_whitelist      | Optional  | List of bucket prefixes that you don't want   |
+  |                       |           | to be marked as non-compliant, ex.            |
+  |                       |           | CloudFormation, etc.                          |
+  | ----------------------|-----------|---------------------------------------------- |
+
+Feature:
+    In order to: to protect the data confidentiality
+             As: a Security Officer
+         I want: To ensure that all S3 Buckets have Customer KMS encryption, to go 
+                 one step futher than using just regular KMS encryption.
+
+Scenarios:
+    Scenario 1:
+      Given: the bucket is not encrypted at all.
+       Then: return NON_COMPLIANT
+
+    Scenario 2:
+      Given: the bucket is encrypted but using the S3 default KMS key (SSE-KMS aws/s3).
+       Then: return NON_COMPLIANT
+
+    Scenario 3:
+      Given: the bucket is encrypted with Amazon's S3 key (SSE-S3)
+       Then: return NON_COMPLIANT
+
+    Scenario 4:
+      Given: the bucket is encrypted with a customer created KMS key (SSE-KMS non-aws/s3).
+       Then: return COMPLIANT
+'''
 
 import json
 import sys
@@ -44,7 +94,10 @@ DEBUG=1
 s3_client = boto3.client('s3')
 
 def check_s3_compliance(_bucket_name):
-  prefix_whitelist=['cdktoolkit-stagingbucket-','cf-templates-','aws-codestar-']
+  try:
+    prefix_whitelist=json.loads(event['ruleParameters'])['prefix_whitelist']
+  except:
+    prefix_whitelist=[]
 
   compliant=0
   whitelisted=0
@@ -71,7 +124,9 @@ def check_s3_compliance(_bucket_name):
         compliant=1
         if DEBUG==1:
           print("COMPLIANT")
-    except:
+    except Exception as e:
+      if DEBUG==1:
+        print(e)
       pass
 
     if compliant==1:
@@ -87,6 +142,7 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters):
 
   if DEBUG==1:
     print("event:",event)
+    print("parameters", json.loads(event['ruleParameters'])['prefix_whitelist'])
 
   """Form the evaluation(s) to be return to Config Rules
 
@@ -148,7 +204,7 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters):
     if DEBUG==1:
       print("Configuration Item:",json.loads(event['invokingEvent'])['configurationItem'])
     try:    
-      bucket_name=json.loads(event['invokingEvent'])['configurationItem']['configuration']['bucketName']
+      bucket_name=json.loads(event['invokingEvent'])['configurationItem']['configuration']['name']
       if DEBUG==1:
         print(bucket_name)
     except Exception as e:
