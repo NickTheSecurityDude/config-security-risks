@@ -3,17 +3,17 @@
 **Rule Name:**  
 s3-cust-kms-encrypted
 
-Description:
-  Check that all S3 Buckets have *Customer* KMS Encryption with IAM user permissions disabled.
+**Description:**   
+Check that all S3 Buckets have *Customer* KMS Encryption with IAM user permissions disabled.
 
-Trigger:
-  Periodic
-  Configuration Change on AWS::S3::Bucket
+**Trigger:**   
+- Periodic
+- Configuration Change on AWS::S3::Bucket
 
-Reports on:
-  AWS::S3::Bucket
+**Reports on:**    
+AWS::S3::Bucket
 
-Parameters:  
+**Parameters:**   
   | Parameter Name        | Type      | Description                                   |
   | ----------------------|-----------|---------------------------------------------- |
   | prefix_whitelist      | Optional  | List of bucket prefixes that you don't want   |
