@@ -27,6 +27,7 @@ Feature:
             And: that the Customer KMS Key has IAM user access disabled.
         
 Scenarios:
+
     Scenario 1:
       Given: bucket is not in current region
        Then: return NOT_APPLICABLE
