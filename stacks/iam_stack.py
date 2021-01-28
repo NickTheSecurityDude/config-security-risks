@@ -36,7 +36,8 @@ class IAMStack(core.Stack):
             #"config:Get*",
             "s3:GetEncryptionConfiguration",
             "s3:GetBucketLocation",
-            "kms:GetKeyPolicy"
+            "kms:GetKeyPolicy",
+            "kms:DescribeKey"
           ],
           effect=iam.Effect.ALLOW,
           resources=["*"]

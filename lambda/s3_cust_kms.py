@@ -182,15 +182,16 @@ def check_s3_compliance(_bucket_name,_region):
         # check if we have a customer key id
         if len(key_id)==36:
           compliant=check_key_policy(key_id)
+          if DEBUG:
+            print("check_key_policy result:",compliant)
         if DEBUG==1:
-          print("check_key_policy result:",compliant)
-          if complaint==1:
+          if compliant==1:
             print("COMPLIANT!! KMS encrypted key with IAM disabled")
           else:
             print("NON_COMPLIANT, key has IAM permissions")
     except Exception as e:
       if DEBUG==1:
-        print("A \"ServerSideEncryptionConfigurationNotFoundError\" error here is fine.")
+        print("A \"ServerSideEncryptionConfigurationNotFoundError\" or GetKeyPolicy \"AccessDenied\" error here is fine.")
         print(e)
       pass
 
