@@ -31,7 +31,7 @@ class ConfigStack(core.Stack):
       rule_scope=config.RuleScope.from_resources([
         config.ResourceType.S3_BUCKET
       ]),
-      input_parameters={"prefix_whitelist":"['cdktoolkit-stagingbucket-','cf-templates-','aws-codestar-']"}
+      input_parameters={"prefix_whitelist":"[\"cdktoolkit-stagingbucket-\",\"cf-templates-\",\"aws-codestar-\"]"}
     )
 
     # Custom Rules (AWS)

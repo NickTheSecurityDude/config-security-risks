@@ -30,14 +30,22 @@ class IAMStack(core.Stack):
       assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
       inline_policies=[iam.PolicyDocument(
         statements=[iam.PolicyStatement(
-          actions=["config:PutEvaluations","s3:GetEncryptionConfiguration"],
+          actions=[
+            # these two permissions are part of AWSConfigRulesExecutionRole
+            #"config:PutEvaluations",
+            #"config:Get*",
+            "s3:GetEncryptionConfiguration",
+            "s3:GetBucketLocation",
+            "kms:GetKeyPolicy"
+          ],
           effect=iam.Effect.ALLOW,
           resources=["*"]
         )]
       )],
       managed_policies=[
-        iam.ManagedPolicy.from_aws_managed_policy_name('IAMReadOnlyAccess'),
-        iam.ManagedPolicy.from_aws_managed_policy_name('service-role/AWSLambdaBasicExecutionRole')
+        iam.ManagedPolicy.from_aws_managed_policy_name('job-function/ViewOnlyAccess'),
+        iam.ManagedPolicy.from_aws_managed_policy_name('service-role/AWSLambdaBasicExecutionRole'),
+        iam.ManagedPolicy.from_aws_managed_policy_name('service-role/AWSConfigRulesExecutionRole')
       ]
     ).without_policy_updates()
 

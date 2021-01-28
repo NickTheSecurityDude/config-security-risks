@@ -17,7 +17,7 @@ Rule Name:
   s3-cust-kms-encrypted
 
 Description:
-  Check that all S3 Buckets have *Customer* KMS Encryption.
+  Check that all S3 Buckets have *Customer* KMS Encryption with IAM user permissions disabled.
 
 Trigger:
   Periodic
@@ -38,24 +38,42 @@ Parameters:
 Feature:
     In order to: to protect the data confidentiality
              As: a Security Officer
-         I want: To ensure that all S3 Buckets have Customer KMS encryption, to go 
-                 one step futher than using just regular KMS encryption.
-
+         I want: To ensure that all S3 Buckets have Customer KMS encryption
+            And: that the Customer KMS Key has IAM user access disabled.
+        
 Scenarios:
     Scenario 1:
+      Given: bucket is not in current region
+       Then: return NOT_APPLICABLE
+
+    Scenario 2:
+      Given: prefix_whitelist is not a list
+       Then: return ERROR
+
+    Scenario 3:
+      Given: one or more values in the prefix_whitelist list are not strings
+       Then: return ERROR
+
+    Scenario 4:
       Given: the bucket is not encrypted at all.
        Then: return NON_COMPLIANT
 
-    Scenario 2:
+    Scenario 5:
       Given: the bucket is encrypted but using the S3 default KMS key (SSE-KMS aws/s3).
        Then: return NON_COMPLIANT
 
-    Scenario 3:
+    Scenario 6:
       Given: the bucket is encrypted with Amazon's S3 key (SSE-S3)
        Then: return NON_COMPLIANT
+    
+    Scenario 7:
+      Given: the bucket is encrypted with a customer created KMS key (SSE-KMS non-aws/s3)
+        And: the customer created KMS key has IAM user permissions enabled
+       Then: return NON_COMPLIANT
 
-    Scenario 4:
-      Given: the bucket is encrypted with a customer created KMS key (SSE-KMS non-aws/s3).
+    Scenario 8:
+      Given: the bucket is encrypted with a customer created KMS key (SSE-KMS non-aws/s3)
+        And: the customer created KMS key does NOT have IAM user permissions enabled
        Then: return COMPLIANT
 '''
 
@@ -87,13 +105,50 @@ CONFIG_ROLE_TIMEOUT_SECONDS = 900
 # Main Code #
 #############
 
-import re
+DEBUG=0
 
-DEBUG=1
+kms_client = boto3.client('kms')
+
+# Function to check if key has IAM enabled and if its an AWS managed key
+# Code from config-kms-iam-cdk project lambda/config_kms_iam_checker.py, with 1 modification
+def check_key_policy(_key_id):
+
+  _compliant=0
+
+  # if this errors the key does not have IAM access enabled and IS complaint
+  try:
+    response = kms_client.get_key_policy(
+      KeyId=_key_id,
+      PolicyName='default'
+    )
+    response = kms_client.describe_key(
+      KeyId=_key_id,
+    )
+    
+    # check if the key manager is AWS or the customer
+    key_manager=response['KeyMetadata']['KeyManager']
+    if key_manager=='AWS':
+      if DEBUG==1:
+        print(_key_id,"is an AWS Managed Key")
+      # Modification from original code; return non-compliant for AWS Managed Keys
+      _compliant=0
+  except Exception as e:
+    if DEBUG==1:
+      print(e)
+    _compliant=1
+    
+  return _compliant
+
+import re
 
 s3_client = boto3.client('s3')
 
-def check_s3_compliance(_bucket_name):
+def check_s3_compliance(_bucket_name,_region):
+
+  # if bucket not in current region, treat it as "whitelisted"
+  if s3_client.get_bucket_location(Bucket=_bucket_name)['LocationConstraint'] != _region:
+    return "NOT_APPLICABLE"
+
   try:
     prefix_whitelist=json.loads(event['ruleParameters'])['prefix_whitelist']
   except:
@@ -121,11 +176,21 @@ def check_s3_compliance(_bucket_name):
       if re.search(pattern, key_arn):
         compliant=0
       else:
-        compliant=1
+        key_id=key_arn.split("/")[1]
         if DEBUG==1:
-          print("COMPLIANT")
+          print(key_id)
+        # check if we have a customer key id
+        if len(key_id)==36:
+          compliant=check_key_policy(key_id)
+        if DEBUG==1:
+          print("check_key_policy result:",compliant)
+          if complaint==1:
+            print("COMPLIANT!! KMS encrypted key with IAM disabled")
+          else:
+            print("NON_COMPLIANT, key has IAM permissions")
     except Exception as e:
       if DEBUG==1:
+        print("A \"ServerSideEncryptionConfigurationNotFoundError\" error here is fine.")
         print(e)
       pass
 
@@ -138,11 +203,18 @@ def check_s3_compliance(_bucket_name):
         print(_bucket_name,"is NOT compliant")
       return "NON_COMPLIANT"
 
-def evaluate_compliance(event, configuration_item, valid_rule_parameters):
+def evaluate_compliance(event, configuration_item, valid_rule_parameters, region):
 
   if DEBUG==1:
     print("event:",event)
     print("parameters", json.loads(event['ruleParameters'])['prefix_whitelist'])
+    print("valid_rule_parameters:",valid_rule_parameters)
+
+    rule_parameters=json.loads(event['ruleParameters'])
+
+    # check parameters
+    # THIS IS RUN AUTOMATICALLY IN THE HANDLER
+    #evaluate_parameters(rule_parameters)
 
   """Form the evaluation(s) to be return to Config Rules
 
@@ -167,6 +239,9 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters):
   # Add your custom logic here. #
   ###############################
 
+  # set region in handler and pass it
+  #region=context.invoked_function_arn.split(":")[3]
+
   # check if this is a period run (loop through all keys) or a run based on a change      
   try:
     periodic_test=json.loads(event['invokingEvent'])['configurationItem']
@@ -185,12 +260,14 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters):
 
     s3_client = boto3.client('s3')
     response = s3_client.list_buckets()
+    
+
     for bucket in response['Buckets']:
       bucket_name=bucket['Name']
       if DEBUG==1:
         print(bucket_name)
-        compliance=check_s3_compliance(bucket_name)
-        evaluations.append(build_evaluation(bucket_name, compliance, event, 'AWS::S3::Bucket'))
+      compliance=check_s3_compliance(bucket_name,region)
+      evaluations.append(build_evaluation(bucket_name, compliance, event, 'AWS::S3::Bucket'))
 
     if DEBUG==1:
       print("Evaluations:",evaluations)    
@@ -214,7 +291,7 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters):
           
       return None
     
-    compliance=check_s3_compliance(bucket_name)
+    compliance=check_s3_compliance(bucket_name,region)
     return compliance
 
 
@@ -227,6 +304,23 @@ def evaluate_parameters(rule_parameters):
     Keyword arguments:
     rule_parameters -- the Key/Value dictionary of the Config Rules parameters
     """
+    
+    #rule_parameters=json.loads(rule_parameters)
+    
+    if DEBUG:
+      print("eval_param rp:",rule_parameters)
+      print("eval_param pw:",rule_parameters['prefix_whitelist'])
+      print("eval_param pw json:",json.loads(rule_parameters['prefix_whitelist']))
+
+    if rule_parameters:
+      prefix_whitelist=json.loads(rule_parameters['prefix_whitelist'])
+      if prefix_whitelist != '':
+        if type(prefix_whitelist) is not list:
+          raise ValueError('prefix_whitelist needs to be a list.')
+        for prefix in prefix_whitelist:
+          if type(prefix) is not str:
+            raise ValueError('Only strings may be in the prefix_whitelist')
+
     valid_rule_parameters = rule_parameters
     return valid_rule_parameters
 
@@ -457,7 +551,13 @@ def lambda_handler(event, context):
 
     global AWS_CONFIG_CLIENT
 
-    #print(event)
+    region=context.invoked_function_arn.split(":")[3]
+
+    if DEBUG:
+      print("handler event:",event)
+      print("handler context:",context)
+      print("handler region:",region)
+    
     check_defined(event, 'event')
     invoking_event = json.loads(event['invokingEvent'])
     rule_parameters = {}
@@ -474,7 +574,7 @@ def lambda_handler(event, context):
         if invoking_event['messageType'] in ['ConfigurationItemChangeNotification', 'ScheduledNotification', 'OversizedConfigurationItemChangeNotification']:
             configuration_item = get_configuration_item(invoking_event)
             if is_applicable(configuration_item, event):
-                compliance_result = evaluate_compliance(event, configuration_item, valid_rule_parameters)
+                compliance_result = evaluate_compliance(event, configuration_item, valid_rule_parameters, region)
             else:
                 compliance_result = "NOT_APPLICABLE"
         else:
