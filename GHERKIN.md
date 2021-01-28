@@ -1,5 +1,3 @@
-'''
-
 #####################################
 ##           Gherkin               ##
 #####################################
@@ -66,4 +64,3 @@ Scenarios:
       Given: the bucket is encrypted with a customer created KMS key (SSE-KMS non-aws/s3)
         And: the customer created KMS key does NOT have IAM user permissions enabled
        Then: return COMPLIANT
-'''
