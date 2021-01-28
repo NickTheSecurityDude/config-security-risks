@@ -1,10 +1,10 @@
-#           Gherkin               #
+#           Gherkin  
 
 **Rule Name:**  
 s3-cust-kms-encrypted
 
 **Description:**   
-Check that all S3 Buckets have **Customer** KMS Encryption with IAM user permissions disabled.
+Check that all S3 Buckets have **_Customer_** KMS Encryption with IAM user permissions disabled.
 
 **Trigger:**   
 - Periodic
