@@ -20,7 +20,8 @@ AWS::S3::Bucket
   |                       |           | to be marked as non-compliant, ex.            |
   |                       |           | CloudFormation, etc.                          |
 
-Feature:
+**Feature:**   
+
     In order to: to protect the data confidentiality
              As: a Security Officer
          I want: To ensure that all S3 Buckets have Customer KMS encryption
