@@ -1,6 +1,6 @@
-##           Gherkin               ##
+#           Gherkin               #
 
-Rule Name:
+## Rule Name:
   s3-cust-kms-encrypted
 
 Description:
