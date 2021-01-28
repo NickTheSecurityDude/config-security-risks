@@ -1,6 +1,4 @@
-#####################################
 ##           Gherkin               ##
-#####################################
 
 Rule Name:
   s3-cust-kms-encrypted
@@ -16,13 +14,11 @@ Reports on:
   AWS::S3::Bucket
 
 Parameters:  
-  | ----------------------|-----------|-----------------------------------------------|
   | Parameter Name        | Type      | Description                                   |
   | ----------------------|-----------|---------------------------------------------- |
   | prefix_whitelist      | Optional  | List of bucket prefixes that you don't want   |
   |                       |           | to be marked as non-compliant, ex.            |
   |                       |           | CloudFormation, etc.                          |
-  | ----------------------|-----------|---------------------------------------------- |
 
 Feature:
     In order to: to protect the data confidentiality
