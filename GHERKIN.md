@@ -27,7 +27,7 @@ AWS::S3::Bucket
          I want: To ensure that all S3 Buckets have Customer KMS encryption
             And: that the Customer KMS Key has IAM user access disabled.
         
-Scenarios:
+**Scenarios:**   
 
     Scenario 1:
       Given: bucket is not in current region
