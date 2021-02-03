@@ -5,7 +5,8 @@
 - EBS encryption off by default
 - S3 buckets not using **customer** KMS Encryption
 
-Howto Install:  
+## Howto Install:  
+
 If needed, export your AWS profile:  
 `export AWS_PROFILE=profile_name`
 
