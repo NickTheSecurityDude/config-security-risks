@@ -128,12 +128,12 @@ def check_key_policy(_key_id):
     # check if the key manager is AWS or the customer
     key_manager=response['KeyMetadata']['KeyManager']
     if key_manager=='AWS':
-      if DEBUG==1:
+      if DEBUG:
         print(_key_id,"is an AWS Managed Key")
       # Modification from original code; return non-compliant for AWS Managed Keys
       _compliant=0
   except Exception as e:
-    if DEBUG==1:
+    if DEBUG:
       print(e)
     _compliant=1
     
@@ -143,26 +143,34 @@ import re
 
 s3_client = boto3.client('s3')
 
-def check_s3_compliance(_bucket_name,_region):
+def check_s3_compliance(_bucket_name,_region,_prefix_whitelist):
 
   # if bucket not in current region, treat it as "whitelisted"
-  if s3_client.get_bucket_location(Bucket=_bucket_name)['LocationConstraint'] != _region:
+  bucket_region=s3_client.get_bucket_location(Bucket=_bucket_name)['LocationConstraint']
+  
+  # fix for us-east-1 buckets
+  if bucket_region is None:
+    bucket_region='us-east-1'
+    
+  if bucket_region != _region:
+    if DEBUG:
+      print("Bucket not in region:",_region)
+      print("region:",bucket_region)
     return "NOT_APPLICABLE"
 
-  try:
-    prefix_whitelist=json.loads(event['ruleParameters'])['prefix_whitelist']
-  except:
-    prefix_whitelist=[]
+  print("Line 161: Prefix whitelist",_prefix_whitelist)
 
   compliant=0
   whitelisted=0
 
-  for prefix in prefix_whitelist:
+  for prefix in _prefix_whitelist:
+    if DEBUG:
+      print("Prefix Check",prefix,_bucket_name)
     pattern="^"+prefix+".*"
     match = re.search(pattern, _bucket_name)
     if match:
       whitelisted=1
-      if DEBUG==1:
+      if DEBUG:
         print(_bucket_name,"is whitelisted")
       return "NOT_APPLICABLE"
 
@@ -177,38 +185,37 @@ def check_s3_compliance(_bucket_name,_region):
         compliant=0
       else:
         key_id=key_arn.split("/")[1]
-        if DEBUG==1:
+        if DEBUG:
           print(key_id)
         # check if we have a customer key id
         if len(key_id)==36:
           compliant=check_key_policy(key_id)
-          if DEBUG:
-            print("check_key_policy result:",compliant)
-        if DEBUG==1:
-          if compliant==1:
+        if DEBUG:
+          print("check_key_policy result:",compliant)
+          if complaint==1:
             print("COMPLIANT!! KMS encrypted key with IAM disabled")
           else:
             print("NON_COMPLIANT, key has IAM permissions")
     except Exception as e:
-      if DEBUG==1:
-        print("A \"ServerSideEncryptionConfigurationNotFoundError\" or GetKeyPolicy \"AccessDenied\" error here is fine.")
+      if DEBUG:
+        print("A \"ServerSideEncryptionConfigurationNotFoundError\" error here is fine.")
         print(e)
       pass
 
     if compliant==1:
-      if DEBUG==1:
+      if DEBUG:
         print(_bucket_name,"IS compliant")
       return "COMPLIANT"
     else:
-      if DEBUG==1:
+      if DEBUG:
         print(_bucket_name,"is NOT compliant")
       return "NON_COMPLIANT"
 
 def evaluate_compliance(event, configuration_item, valid_rule_parameters, region):
 
-  if DEBUG==1:
+  if DEBUG:
     print("event:",event)
-    print("parameters", json.loads(event['ruleParameters'])['prefix_whitelist'])
+    print("parameters:", json.loads(event['ruleParameters'])['prefix_whitelist'])
     print("valid_rule_parameters:",valid_rule_parameters)
 
     rule_parameters=json.loads(event['ruleParameters'])
@@ -248,12 +255,21 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters, region
     periodic_test=json.loads(event['invokingEvent'])['configurationItem']
     periodic=0
   except Exception as e:
-    if DEBUG==1:
+    if DEBUG:
       print(e)
     periodic=1
+    
+  print("Loading prefix_whitelist...")
+  try:
+    prefix_whitelist=json.loads(json.loads(event['ruleParameters'])['prefix_whitelist'])
+  except:
+    prefix_whitelist=[]
+    
+  if DEBUG:
+    print("Prefix Type:",type(prefix_whitelist))
   
   if periodic==1:
-    if DEBUG==1:
+    if DEBUG:
       print("Periodic Run Detected")
         
     # if period run, send results from all keys in evaluations array    
@@ -265,12 +281,12 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters, region
 
     for bucket in response['Buckets']:
       bucket_name=bucket['Name']
-      if DEBUG==1:
+      if DEBUG:
         print(bucket_name)
-      compliance=check_s3_compliance(bucket_name,region)
+      compliance=check_s3_compliance(bucket_name,region,prefix_whitelist)
       evaluations.append(build_evaluation(bucket_name, compliance, event, 'AWS::S3::Bucket'))
 
-    if DEBUG==1:
+    if DEBUG:
       print("Evaluations:",evaluations)    
       print("End Lambda Function")
         
@@ -279,20 +295,23 @@ def evaluate_compliance(event, configuration_item, valid_rule_parameters, region
 
   else:
     # make sure the bucket_name is found
-    if DEBUG==1:
+    if DEBUG:
+      print("On-demand / Configuration Change Run Detected")
       print("Configuration Item:",json.loads(event['invokingEvent'])['configurationItem'])
     try:    
       bucket_name=json.loads(event['invokingEvent'])['configurationItem']['configuration']['name']
-      if DEBUG==1:
+      if DEBUG:
         print(bucket_name)
     except Exception as e:
-      if DEBUG==1:
+      if DEBUG:
         print(e)
         print("Line : bucket_name not found")
           
       return None
     
-    compliance=check_s3_compliance(bucket_name,region)
+    compliance=check_s3_compliance(bucket_name,region,prefix_whitelist)
+    if(DEBUG):
+      print(compliance)
     return compliance
 
 
